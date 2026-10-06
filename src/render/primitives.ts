@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { RGB, V2 } from '../types';
-import { BEAM_FRAG, ORB_FRAG, QUAD_VERT, RING_FRAG } from './shaders';
+import { AURA_FRAG, BEAM_FRAG, ORB_FRAG, QUAD_VERT, RING_FRAG } from './shaders';
 
 export function additive(params: THREE.ShaderMaterialParameters): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -83,6 +83,41 @@ export class OrbPool extends QuadPool {
     u.uIntensity.value = o.intensity;
     u.uSeed.value = o.seed;
     u.uTurb.value = o.turb;
+    setRGB(u.uGlow, o.glow);
+    setRGB(u.uCore, o.core);
+  }
+}
+
+export class AuraPool extends QuadPool {
+  constructor(scene: THREE.Scene) {
+    super(
+      scene,
+      new THREE.PlaneGeometry(1, 1),
+      additive({
+        vertexShader: QUAD_VERT,
+        fragmentShader: AURA_FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          uIntensity: { value: 1 },
+          uSeed: { value: 0 },
+          uGlow: { value: new THREE.Vector3() },
+          uCore: { value: new THREE.Vector3() },
+        },
+      }),
+      0,
+    );
+  }
+
+  /** `width`/`height` are the full quad size; the flame edge sits at ~3/4 of it. */
+  draw(o: { at: V2; width: number; height: number; glow: RGB; core: RGB; intensity: number; seed: number; time: number }) {
+    if (o.width < 1 || o.intensity <= 0.001) return;
+    const m = this.next();
+    m.position.set(o.at.x, o.at.y, 0);
+    m.scale.set(o.width, o.height, 1);
+    const u = m.material.uniforms;
+    u.uTime.value = o.time;
+    u.uIntensity.value = o.intensity;
+    u.uSeed.value = o.seed;
     setRGB(u.uGlow, o.glow);
     setRGB(u.uCore, o.core);
   }

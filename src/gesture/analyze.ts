@@ -19,6 +19,8 @@ export interface FormAnalysis {
   chargePose: number;
   /** 0..1 match against the "HA!" thrust pose. */
   firePose: number;
+  /** 0..1 match against Goku's Super Saiyan power-up: deep horse stance, fists clenched at the hips. */
+  powerUpPose: number;
   stance: number | null;
   palms: number | null;
   sidePull: number;
@@ -123,6 +125,13 @@ export function analyzePose(frame: PlayerFrame, aspect: number): FormAnalysis | 
   const extension = Math.max(ramp(elbowAvg, 115, 145) * ramp(elbowMin, 95, 125), ramp(forward, 0.2, 0.45));
   const looseHeight = ramp(below, -0.8, -0.45) * ramp(below, 0.85, 0.6);
 
+  // --- Power-up (Goku going Super Saiyan): fists pulled in to the hips, both elbows bent back,
+  // in a deep horse stance (checked below). Wrists apart separates it from the charge pose,
+  // bent elbows from arms hanging, and the stance from just standing with hands on hips.
+  const pApart = ramp(wristGap, 0.9, 1.2);
+  const pBent = ramp(Math.max(elbowL, elbowR), 145, 120);
+  const pHeight = ramp(below, 0.3, 0.55) * ramp(below, 1.35, 1.1);
+
   // --- Stance: feet wide apart, knees bent (only if legs are in frame).
   let stance: number | null = null;
   const legVis = Math.min(vis[P.L_KNEE], vis[P.R_KNEE], vis[P.L_ANKLE], vis[P.R_ANKLE]);
@@ -137,6 +146,11 @@ export function analyzePose(frame: PlayerFrame, aspect: number): FormAnalysis | 
 
   // --- Palms from the hand model, when available.
   const palms = frame.hands.length ? avg(frame.hands.map(handOpenness)) : null;
+  // The horse stance is required whenever the legs are in frame. Clenched fists help when the
+  // hand model can see them; open hands only soften the score.
+  const pStance = stance === null ? 1 : ramp(stance, 0.35, 0.6);
+  const fists = palms === null ? 1 : 0.6 + 0.4 * ramp(palms, 0.7, 0.35);
+  const powerUpPose = Math.min(pApart, pBent, pHeight, pStance) * fists;
 
   // --- Screen-space anchors.
   const handFor = (side: 0 | 1) => frame.hands.find((h) => h.side === side);
@@ -183,6 +197,7 @@ export function analyzePose(frame: PlayerFrame, aspect: number): FormAnalysis | 
   return {
     chargePose,
     firePose,
+    powerUpPose,
     stance,
     palms,
     sidePull,

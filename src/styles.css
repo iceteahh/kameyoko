@@ -216,6 +216,23 @@ button:disabled {
   color: var(--gold);
 }
 
+.ssj-badge {
+  display: none;
+  font: 800 11px Inter, sans-serif;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+  text-shadow: 0 0 8px rgba(255, 210, 63, 0.8);
+}
+
+.panel.ssj {
+  border-color: color-mix(in srgb, var(--gold) 70%, transparent);
+  box-shadow: 0 0 32px rgba(255, 210, 63, 0.45);
+}
+
+.panel.ssj .ssj-badge {
+  display: block;
+}
+
 .state {
   font: 800 12px Inter, sans-serif;
   letter-spacing: 1.5px;
@@ -224,7 +241,8 @@ button:disabled {
 }
 
 .state[data-phase='charging'],
-.state[data-phase='firing'] {
+.state[data-phase='firing'],
+.state[data-phase='powering'] {
   color: var(--fg);
 }
 
@@ -241,6 +259,12 @@ button:disabled {
   background: linear-gradient(90deg, color-mix(in srgb, var(--pc) 70%, #000), var(--pc), #fff);
   box-shadow: 0 0 12px var(--pc);
   transition: width 0.08s linear;
+}
+
+.bar .fill.ascend,
+.panel.ssj .bar .fill {
+  background: linear-gradient(90deg, #a06c00, var(--gold), #fff);
+  box-shadow: 0 0 14px var(--gold);
 }
 
 .pump-row {

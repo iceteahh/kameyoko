@@ -20,10 +20,54 @@ describe('GestureController', () => {
     expect(charge[0]).toEqual({ type: 'chargeStart' });
     expect(charge.filter((e) => e.type === 'callout').map((e) => (e as { text: string }).text)).toEqual(['KA', 'ME', 'HA', 'ME']);
     expect(c.charge).toBeGreaterThan(0.9);
+    expect(charge.some((e) => e.type === 'transform')).toBe(false);
 
     const fire = run(c, 'fire', 0.2);
     expect(fire.some((e) => e.type === 'fire')).toBe(true);
     expect(c.phase).toBe('firing');
+  });
+
+  it('never transforms from the Kamehameha charge alone', () => {
+    const c = new GestureController();
+    expect(run(c, 'charge', 8).some((e) => e.type === 'transform')).toBe(false);
+    expect(c.superSaiyan).toBe(false);
+  });
+
+  it('turns Super Saiyan from the power-up stance, then fires a stronger Kamehameha', () => {
+    const c = new GestureController();
+    const ev = run(c, 'powerup', 3.5);
+    expect(ev[0]).toEqual({ type: 'powerStart' });
+    expect(ev.filter((e) => e.type === 'transform')).toHaveLength(1);
+    expect(ev.some((e) => e.type === 'chargeStart' || e.type === 'fire')).toBe(false);
+    expect(c.superSaiyan).toBe(true);
+
+    // Straight from the power-up into the Kamehameha; charging is faster once transformed.
+    const normal = new GestureController();
+    run(normal, 'charge', 1.2);
+    run(c, 'charge', 1.2);
+    expect(c.phase).toBe('charging');
+    expect(c.charge).toBeGreaterThan(normal.charge * 1.4);
+
+    // The form survives firing and the cooldown.
+    run(c, 'charge', 2);
+    expect(run(c, 'fire', 0.5).some((e) => e.type === 'fire')).toBe(true);
+    run(c, 'idle', 2);
+    expect(c.phase).toBe('idle');
+    expect(c.superSaiyan).toBe(true);
+
+    c.reset();
+    expect(c.superSaiyan).toBe(false);
+  });
+
+  it('loses power-up progress when the stance is dropped early', () => {
+    const c = new GestureController();
+    run(c, 'powerup', 1.5);
+    expect(c.phase).toBe('powering');
+    expect(c.ascend).toBeGreaterThan(0.3);
+    run(c, 'idle', 3);
+    expect(c.phase).toBe('idle');
+    expect(c.ascend).toBe(0);
+    expect(run(c, 'powerup', 1.5).some((e) => e.type === 'transform')).toBe(false);
   });
 
   it('does not fire without charging first', () => {

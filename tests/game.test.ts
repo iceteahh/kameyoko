@@ -71,3 +71,49 @@ describe('solo play', () => {
     expect(game.beams[0].length).toBeGreaterThan(500);
   });
 });
+
+describe('super saiyan', () => {
+  it('the solo demo powers up to Super Saiyan before its first Kamehameha', () => {
+    const layout = new Layout();
+    layout.update(1280, 720, 1280, 720);
+    const tracker = new Tracker();
+    tracker.maxPlayers = 1;
+    const ctrl = new GestureController();
+    const demo = new Demo(0, 16 / 9, true);
+    const types: string[] = [];
+    const dt = 1 / 60;
+    for (let now = 0; now < 10; now += dt) {
+      tracker.update(demo.frame(now), now, layout.aspect);
+      const s = tracker.slots[0];
+      for (const e of ctrl.update(dt, s.frame ? analyzePose(s.frame, layout.aspect) : null)) types.push(e.type);
+    }
+    expect(types.indexOf('transform')).toBeGreaterThan(-1);
+    expect(types.indexOf('transform')).toBeLessThan(types.indexOf('fire'));
+    expect(ctrl.superSaiyan).toBe(true);
+  });
+
+  it('pushes harder in a beam struggle', () => {
+    const layout = new Layout();
+    layout.update(1280, 720, 1280, 720);
+    const game = new Game(layout);
+    const pose = (facing: 1 | -1, cx: number) =>
+      analyzePose({ pose: toPoseFrame(buildWorldPose('fire'), { facing, cx }), hands: [] }, 16 / 9);
+    const ctrls = [new GestureController(), new GestureController()];
+    const players = ctrls.map((ctrl, i) => ({ present: true, analysis: pose(i === 0 ? 1 : -1, i === 0 ? 0.2 : 0.8), ctrl })) as [
+      PlayerCtx,
+      PlayerCtx,
+    ];
+    for (let k = 0; k < 1800; k++) {
+      // Hold both players in an identical full-power beam; only player 1 is Super Saiyan.
+      for (const c of ctrls) {
+        c.phase = 'firing';
+        c.charge = c.fireCharge = 1;
+        c.formScore = 1;
+      }
+      ctrls[1].superSaiyan = true;
+      const ev = game.update(1 / 60, players, 2);
+      if (ev.some((e) => e.type === 'ko')) break;
+    }
+    expect(game.winner).toBe(1);
+  });
+});

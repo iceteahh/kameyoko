@@ -7,12 +7,13 @@ import { clamp, easeOutCubic, lerp, perp2, rand, rayToRectEdge } from '../math';
 import type { PlayerId, RGB, V2 } from '../types';
 import type { PostParams } from './renderer';
 import { Particles } from './particles';
-import { BeamPool, OrbPool, RingPool } from './primitives';
+import { AuraPool, BeamPool, OrbPool, RingPool } from './primitives';
 import { lightningPath, Ribbons } from './ribbons';
 
 const WHITE: RGB = [1, 1, 1];
 const mix = (a: RGB, b: RGB, t: number): RGB => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 const color = (i: PlayerId) => CONFIG.colors.players[i];
+const SSJ = CONFIG.superSaiyan;
 
 interface Shock {
   at: V2;
@@ -44,6 +45,7 @@ interface Streak {
 
 export class Effects {
   private orbs: OrbPool;
+  private auras: AuraPool;
   private beams: BeamPool;
   private rings: RingPool;
   private particles: Particles;
@@ -63,6 +65,7 @@ export class Effects {
 
   constructor(scene: THREE.Scene, private layout: Layout, pixelRatio: number) {
     this.orbs = new OrbPool(scene);
+    this.auras = new AuraPool(scene);
     this.beams = new BeamPool(scene);
     this.rings = new RingPool(scene);
     this.particles = new Particles(scene);
@@ -113,6 +116,19 @@ export class Effects {
     if (e.type === 'chargeStart') this.shock(at, this.layout.height * 0.12, color(i).glow, 0.5, 0.8, 6);
     if (e.type === 'callout') this.shock(at, this.layout.height * (0.1 + e.index * 0.03), color(i).glow, 0.45, 0.7, 5);
     if (e.type === 'fizzle') this.burst(at, 40, 300, [color(i).glow], 6, 0.5);
+    if (e.type === 'powerStart') {
+      const body = this.layout.toScreen(a.chestCenter);
+      this.shock(body, this.layout.height * 0.25, players[i].ctrl.superSaiyan ? SSJ.glow : WHITE, 0.5, 1.0, 8);
+    }
+    if (e.type === 'transform') {
+      const H = this.layout.height;
+      const body = this.layout.toScreen(a.chestCenter);
+      this.flash = Math.max(this.flash, 0.7);
+      this.trauma = 1;
+      this.shock(body, H * 0.7, SSJ.glow, 1.0, 2.0, 20);
+      this.shock(body, H * 0.45, SSJ.core, 0.7, 1.4, 10);
+      this.burst(body, 350, 1200, [SSJ.glow, SSJ.core, WHITE], 12, 1.1);
+    }
   }
 
   onGame(e: GameEvent) {
@@ -157,6 +173,7 @@ export class Effects {
     this.time = time;
     const H = this.layout.height;
     this.orbs.begin();
+    this.auras.begin();
     this.beams.begin();
     this.rings.begin();
     this.ribbons.begin();
@@ -174,25 +191,72 @@ export class Effects {
       const hands = this.layout.toScreen(a.handsCenter);
       const ctrl = p.ctrl;
 
-      // Rising aura around the body while powering up.
-      if (ctrl.phase === 'charging' || ctrl.phase === 'firing') {
-        const box = a.box;
-        const p0 = this.layout.toScreen({ x: box.x0, y: box.y0 });
-        const p1 = this.layout.toScreen({ x: box.x1, y: box.y1 });
-        const level = ctrl.phase === 'firing' ? 0.8 : ctrl.charge;
-        this.emit(`aura${i}`, 30 + 160 * level, dt, () => {
+      const ss = ctrl.superSaiyan;
+      const powering = ctrl.phase === 'powering';
+      // 0..1: how golden this player is (fully once transformed, rising while powering up).
+      const gold = ss ? 1 : ctrl.ascend;
+      const glow = mix(c.glow, SSJ.glow, gold);
+      const core = mix(c.core, SSJ.core, gold);
+      const box = a.box;
+      const p0 = this.layout.toScreen({ x: box.x0, y: box.y0 });
+      const p1 = this.layout.toScreen({ x: box.x1, y: box.y1 });
+
+      // Flame aura: builds while powering up, stays on once Super Saiyan and flares with effort.
+      if (ss || powering) {
+        const effort = powering ? (ss ? 1.0 : 0.25 + 0.6 * ctrl.ascend) : ctrl.phase === 'firing' ? 0.75 : ctrl.phase === 'charging' ? 0.65 : 0.5;
+        const bh = p1.y - p0.y;
+        const bw = Math.max(p1.x - p0.x, bh * 0.45);
+        const flare = 1 + 0.12 * (powering ? 1 : 0) + 0.03 * Math.sin(time * 18 + i);
+        this.auras.draw({
+          at: { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 - bh * 0.1 },
+          width: bw * 1.6 * flare,
+          height: bh * 1.55 * flare,
+          glow,
+          core,
+          intensity: effort,
+          seed: this.seeds[i],
+          time,
+        });
+      }
+
+      // Rising sparks around the body while powering up or charging (always on once Super Saiyan).
+      if (ctrl.phase === 'charging' || ctrl.phase === 'firing' || powering || ss) {
+        const level =
+          ctrl.phase === 'firing' ? 0.8 : ctrl.phase === 'charging' ? Math.max(ctrl.charge, 0.35 * gold) : powering ? 0.6 + 0.4 * gold : 0.35;
+        const pad = (p1.x - p0.x) * 0.15 * Math.max(gold, powering ? 1 : 0);
+        this.emit(`aura${i}`, (30 + 160 * level) * (1 + gold), dt, () => {
           this.particles.spawn({
-            x: rand(p0.x, p1.x),
+            x: rand(p0.x - pad, p1.x + pad),
             y: rand(lerp(p0.y, p1.y, 0.3), p1.y),
             vx: rand(-20, 20),
-            vy: -rand(120, 320) * (0.5 + level),
+            vy: -rand(120, 320) * (0.5 + level) * (1 + 0.5 * gold),
             life: rand(0.4, 0.9),
             size: rand(6, 16),
-            color: mix(c.glow, c.core, Math.random() * 0.4),
+            color: mix(glow, core, Math.random() * 0.4),
             drag: 0.6,
           });
         });
       }
+
+      // Powering up: the ground shakes and sparks crackle around the body.
+      if (powering) {
+        anyCharging = true;
+        const k = ss ? 0.6 : ctrl.ascend;
+        this.trauma = Math.max(this.trauma, 0.15 + 0.4 * k);
+        if (Math.random() < 0.25 + 0.5 * k) {
+          const from = { x: rand(p0.x, p1.x), y: rand(p0.y, p1.y) };
+          const ang = rand(0, Math.PI * 2);
+          const r = H * rand(0.05, 0.12);
+          const to = { x: from.x + Math.cos(ang) * r, y: from.y + Math.sin(ang) * r };
+          this.ribbons.polyline(lightningPath(from, to, 0.4, 4), 2.5, Math.random() < 0.5 ? glow : WHITE, 1.4, true);
+        }
+        tintTarget = Math.max(tintTarget, 0.12 + 0.2 * k);
+        tintColor = glow;
+      }
+
+      // Golden spiky hair, flickering on near the end of the power-up, steady once transformed.
+      const hair = ss ? 1 : powering && ctrl.ascend > 0.35 && Math.random() < ctrl.ascend ? ctrl.ascend : 0;
+      if (hair > 0) this.drawHair(a.headTop, a.torsoLen, hair, i, time);
 
       if (ctrl.phase === 'charging' && ctrl.charge > 0) {
         anyCharging = true;
@@ -231,6 +295,7 @@ export class Effects {
       anyBeam = true;
       if (b.mode === 'camera') this.drawCameraBeam(b, dt);
       else this.drawSideBeam(b, dt, game);
+      if (players[b.owner].ctrl.superSaiyan && b.active) this.beamSparks(b);
       tintTarget = Math.max(tintTarget, 0.3 * b.alpha);
       tintColor = color(b.owner).glow;
     }
@@ -269,6 +334,7 @@ export class Effects {
 
     this.particles.update(dt);
     this.orbs.end();
+    this.auras.end();
     this.beams.end();
     this.rings.end();
     this.ribbons.end();
@@ -279,6 +345,48 @@ export class Effects {
     this.tintColor = tintColor;
     this.flash *= Math.exp(-5 * dt);
     this.trauma = Math.max(0, this.trauma - dt * 0.9);
+  }
+
+  /** Golden lightning arcing off a Super Saiyan's beam. */
+  private beamSparks(b: Beam) {
+    const n = perp2(b.dir);
+    const camera = b.mode === 'camera';
+    for (let k = 0; k < 2; k++) {
+      if (Math.random() > 0.6) continue;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      let from: V2;
+      let out: V2;
+      if (camera) {
+        const ang = rand(0, Math.PI * 2);
+        out = { x: Math.cos(ang), y: Math.sin(ang) };
+        from = { x: b.origin.x + out.x * b.width, y: b.origin.y + out.y * b.width };
+      } else {
+        const u = rand(0.1, 1) * b.length;
+        out = { x: n.x * side, y: n.y * side };
+        from = { x: b.origin.x + b.dir.x * u + out.x * b.width * 0.4, y: b.origin.y + b.dir.y * u + out.y * b.width * 0.4 };
+      }
+      const r = b.width * rand(0.8, 1.8);
+      const to = { x: from.x + (out.x + b.dir.x * rand(-0.5, 0.5)) * r, y: from.y + (out.y + b.dir.y * rand(-0.5, 0.5)) * r };
+      this.ribbons.polyline(lightningPath(from, to, 0.35, 4), 2.5, SSJ.glow, 1.5 * b.alpha, true);
+    }
+  }
+
+  private drawHair(headTop: V2, torsoLen: number, level: number, i: PlayerId, time: number) {
+    const T = this.layout.lengthToScreen(torsoLen);
+    // headTop sits 0.45 torso above the nose; the skull is roughly 0.15 torso above it.
+    const center = this.layout.toScreen({ x: headTop.x, y: headTop.y + 0.3 * torsoLen });
+    const spikes = 7;
+    for (let k = 0; k < spikes; k++) {
+      const u = k / (spikes - 1) - 0.5;
+      const flick = Math.sin(time * 9 + k * 1.7 + this.seeds[i]) * 0.06;
+      const ang = -Math.PI / 2 + u * 2.2 + flick;
+      const dir = { x: Math.cos(ang), y: Math.sin(ang) };
+      const len = T * (0.42 - 0.22 * Math.abs(u) * 2) * (1 + flick);
+      const base = { x: center.x + dir.x * T * 0.12, y: center.y + dir.y * T * 0.12 };
+      const tip = { x: center.x + dir.x * len, y: center.y + dir.y * len };
+      this.ribbons.segment(base, tip, T * 0.07, 0.5, SSJ.glow, 1.3 * level);
+      this.ribbons.segment(base, tip, T * 0.025, 0.5, SSJ.core, 1.1 * level);
+    }
   }
 
   private drawSideBeam(b: Beam, dt: number, game: Game) {

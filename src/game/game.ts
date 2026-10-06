@@ -177,7 +177,8 @@ export class Game {
         (0.55 + 0.45 * p.ctrl.fireCharge) *
         (0.8 + 0.4 * p.ctrl.formScore) *
         (0.7 + 0.6 * share) *
-        (1 + 0.25 * Math.min(p.ctrl.pump, 1));
+        (1 + 0.25 * Math.min(p.ctrl.pump, 1)) *
+        (p.ctrl.superSaiyan ? CONFIG.superSaiyan.beamWidth : 1);
     } else {
       b.active = false;
       b.alpha = damp(b.alpha, 0, 7, dt);
@@ -212,7 +213,7 @@ export class Game {
       if (A.active && B.active) {
         s.powers = [0, 1].map((i) => {
           const c = players[i].ctrl;
-          return strugglePower(c.fireCharge, c.formScore, c.pump);
+          return strugglePower(c.fireCharge, c.formScore, c.pump) * (c.superSaiyan ? CONFIG.superSaiyan.power : 1);
         }) as [number, number];
         const { state, loser } = stepStruggle(s, s.powers[0], s.powers[1], dt);
         Object.assign(s, state);
@@ -272,6 +273,7 @@ export class Game {
     this.scores[winner]++;
     this.struggle.active = false;
     players[loser].ctrl.endFire();
+    players[loser].ctrl.superSaiyan = false;
     const a = players[loser].analysis;
     const at = a ? this.layout.toScreen(a.chestCenter) : this.beams[loser].origin;
     ev.push({ type: 'ko', loser, winner, at });

@@ -31,6 +31,24 @@ export const CONFIG = {
     drain: 0.16,
     cooldown: 0.6,
   },
+  superSaiyan: {
+    /** Power-up stance (horse stance, fists at the hips): same start/hold scheme as the charge pose. */
+    startThreshold: 0.55,
+    holdThreshold: 0.4,
+    holdToStart: 0.3,
+    /** Seconds the stance may flicker out before powering up stops. */
+    grace: 0.4,
+    /** Seconds of powering up to transform at perfect form. */
+    holdToTransform: 2.5,
+    /** Transformation progress lost per second while not powering up. */
+    decay: 0.4,
+    /** Once transformed (until the next round, a KO or leaving view): faster charge, wider beam, stronger push. */
+    chargeRate: 1.6,
+    beamWidth: 1.3,
+    power: 1.35,
+    glow: [1.0, 0.76, 0.1] as RGB,
+    core: [1.0, 0.98, 0.72] as RGB,
+  },
   pump: { gain: 4, decay: 1.6, minVelocity: 0.25, max: 1.6 },
   beam: {
     /** Screen widths per second (slow enough that the opponent can counter-fire). */

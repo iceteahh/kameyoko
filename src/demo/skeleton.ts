@@ -7,7 +7,7 @@ import type { PoseFrame, V3 } from '../types';
  * meters, hips at the origin, y down, smaller z = closer to the camera.
  * Poses are authored facing +x (profile) and mirrored for facing -1.
  */
-export type PoseName = 'idle' | 'charge' | 'chargeFront' | 'fire';
+export type PoseName = 'idle' | 'charge' | 'chargeFront' | 'fire' | 'powerup';
 
 const UPPER = 0.3;
 const FORE = 0.28;
@@ -81,6 +81,12 @@ export function buildWorldPose(name: PoseName, pump = 0): V3[] {
     rt = add3(h, v(0, 0, 0.05));
     lp = v(-0.6, 0.3, -1);
     rp = v(-0.6, 0.3, 1);
+  } else if (name === 'powerup') {
+    // Goku's Super Saiyan power-up: fists clenched at the hips, elbows bent back (horse-stance legs).
+    lt = v(-0.03, -0.1, -0.25);
+    rt = v(-0.03, -0.1, 0.25);
+    lp = v(-1, 0, -0.4);
+    rp = v(-1, 0, 0.4);
   } else {
     const h = v(0.55 + pump, -0.47, 0);
     lt = add3(h, v(0, 0, -0.04));

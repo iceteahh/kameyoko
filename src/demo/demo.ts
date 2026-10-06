@@ -58,14 +58,18 @@ export class Demo {
     return { poses, hands: [] };
   }
 
-  /** One player facing the camera, firing straight at the viewer, on a 7s loop. */
+  /**
+   * One player facing the camera on a 10.5s loop: powers up to Super Saiyan,
+   * then charges and fires a Kamehameha straight at the viewer.
+   */
   private soloFrame(now: number): RawFrame {
-    const tau = (now - this.roundStart) % 7;
+    const tau = (now - this.roundStart) % 10.5;
     let world;
     if (tau < 0.6) world = buildWorldPose('idle');
-    else if (tau < 3.0) world = this.blend('idle', 'charge', (tau - 0.6) / 0.35);
-    else if (tau < 5.5) world = this.blend('charge', 'fire', (tau - 3.0) / 0.18);
-    else world = this.blend('fire', 'idle', (tau - 5.5) / 0.4);
+    else if (tau < 4.4) world = this.blend('idle', 'powerup', (tau - 0.6) / 0.35);
+    else if (tau < 6.8) world = this.blend('powerup', 'charge', (tau - 4.4) / 0.35);
+    else if (tau < 9.3) world = this.blend('charge', 'fire', (tau - 6.8) / 0.18);
+    else world = this.blend('fire', 'idle', (tau - 9.3) / 0.4);
     // Authored facing +x; rotate so the arms point at the lens (-z).
     const facingCamera = world.map((p) => ({ x: p.z, y: p.y, z: -p.x }));
     return { poses: [toPoseFrame(facingCamera, { facing: 1, cx: 0.5, aspect: this.aspect })], hands: [] };

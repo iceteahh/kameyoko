@@ -12,7 +12,7 @@ interface Channel {
   sub: GainNode;
 }
 
-const VOICE_TEXT: Record<string, string> = { KA: 'kah', ME: 'meh', HA: 'hah', FIRE: 'haaaaaaa!' };
+const VOICE_TEXT: Record<string, string> = { KA: 'kah', ME: 'meh', HA: 'hah', FIRE: 'haaaaaaa!', SSJ: 'aaaaaaaaaah!' };
 
 /** Fully synthesized sound effects (no audio assets needed). */
 export class Sfx {
@@ -119,20 +119,23 @@ export class Sfx {
   }
 
   /** Continuous per-player sound, called every frame. */
-  setPlayer(i: PlayerId, s: { charging: boolean; charge: number; firing: boolean; power: number }) {
+  setPlayer(i: PlayerId, s: { charging: boolean; charge: number; powering: boolean; ascend: number; firing: boolean; power: number }) {
     const ctx = this.ctx;
     const ch = this.channels[i];
     if (!ctx || !ch) return;
     const now = ctx.currentTime;
     const q = clamp(s.charge, 0, 1);
-    ch.oscA.frequency.setTargetAtTime(70 + 170 * q, now, 0.05);
-    ch.oscB.frequency.setTargetAtTime(70 + 170 * q, now, 0.05);
-    ch.humFilter.frequency.setTargetAtTime(250 + 2600 * q, now, 0.05);
-    ch.hum.gain.setTargetAtTime(s.charging ? 0.03 + 0.08 * q : 0, now, 0.08);
-    ch.crackle.gain.setTargetAtTime(s.charging ? 0.05 * q * q : s.firing ? 0.04 : 0, now, 0.05);
+    // Powering up: a hum that climbs with transformation progress, over a ground rumble.
+    const up = s.powering ? 0.4 + 0.6 * clamp(s.ascend, 0, 1) : 0;
+    const on = s.charging || s.powering;
+    ch.oscA.frequency.setTargetAtTime(70 + 170 * q + 140 * up, now, 0.05);
+    ch.oscB.frequency.setTargetAtTime(70 + 170 * q + 140 * up, now, 0.05);
+    ch.humFilter.frequency.setTargetAtTime(250 + 2600 * q + 1500 * up, now, 0.05);
+    ch.hum.gain.setTargetAtTime(on ? 0.03 + 0.08 * q + 0.04 * up : 0, now, 0.08);
+    ch.crackle.gain.setTargetAtTime(on ? 0.05 * q * q + 0.08 * up : s.firing ? 0.04 : 0, now, 0.05);
     ch.roarFilter.frequency.setTargetAtTime(700 + 1400 * s.power, now, 0.1);
     ch.roar.gain.setTargetAtTime(s.firing ? 0.22 + 0.12 * s.power : 0, now, 0.08);
-    ch.sub.gain.setTargetAtTime(s.firing ? 0.3 : 0, now, 0.1);
+    ch.sub.gain.setTargetAtTime(s.firing ? 0.3 : 0.25 * up, now, 0.1);
   }
 
   setClash(intensity: number) {
@@ -177,15 +180,23 @@ export class Sfx {
     this.oneShot({ dur: 1.0, gain: 0.9, f0: 2500, f1: 200, type: 'lowpass', tone: [90, 30] });
   }
 
+  powerUp() {
+    this.oneShot({ dur: 0.9, gain: 0.6, f0: 150, f1: 1400, type: 'lowpass', tone: [45, 95] });
+  }
+
+  transform() {
+    this.oneShot({ dur: 2.2, gain: 1.0, f0: 5000, f1: 90, type: 'lowpass', tone: [200, 30] });
+  }
+
   explosion() {
     this.oneShot({ dur: 2.0, gain: 1.0, f0: 4000, f1: 60, type: 'lowpass', tone: [120, 25] });
   }
 
-  callout(key: 'KA' | 'ME' | 'HA' | 'FIRE') {
+  callout(key: 'KA' | 'ME' | 'HA' | 'FIRE' | 'SSJ') {
     if (this.muted || !this.voice || typeof speechSynthesis === 'undefined') return;
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(VOICE_TEXT[key]);
-    u.rate = key === 'FIRE' ? 0.9 : 1.3;
+    u.rate = key === 'SSJ' ? 0.7 : key === 'FIRE' ? 0.9 : 1.3;
     u.pitch = 0.8;
     u.volume = 1;
     speechSynthesis.speak(u);

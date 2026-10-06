@@ -24,6 +24,37 @@ describe('analyzePose', () => {
     expect(a.checks.thrust).toBe(true);
   });
 
+  it('recognises the Super Saiyan power-up stance and keeps it apart from the others', () => {
+    const a = analyzePose(frame(buildWorldPose('powerup')), 16 / 9)!;
+    expect(a.powerUpPose).toBeGreaterThan(0.8);
+    expect(a.chargePose).toBeLessThan(0.2);
+    expect(a.firePose).toBeLessThan(0.2);
+    for (const name of ['idle', 'charge', 'chargeFront', 'fire'] as const) {
+      expect(analyzePose(frame(buildWorldPose(name)), 16 / 9)!.powerUpPose).toBeLessThan(0.2);
+    }
+  });
+
+  it('needs the horse stance for the power-up whenever the legs are visible', () => {
+    // Power-up arms, but standing straight with the feet together.
+    const idle = buildWorldPose('idle');
+    const w = buildWorldPose('powerup').map((p, i) => (i >= 25 ? idle[i] : p));
+    expect(analyzePose(frame(w), 16 / 9)!.powerUpPose).toBeLessThan(0.2);
+    // Legs out of frame (close to a laptop): judged on the arms alone.
+    const f = frame(w);
+    for (const i of [25, 26, 27, 28]) f.pose.vis[i] = 0.1;
+    expect(analyzePose(f, 16 / 9)!.powerUpPose).toBeGreaterThan(0.8);
+  });
+
+  it('softens the power-up score when the hand model sees open palms', () => {
+    const f = frame(buildWorldPose('powerup'));
+    // Fingers straight out: each tip is 2.5x farther from the wrist than its knuckle.
+    const world = Array.from({ length: 21 }, (_, i) => (i === 0 ? { x: 0, y: 0, z: 0 } : { x: 0.01 * Math.floor((i - 1) / 4), y: -0.04 * (((i - 1) % 4) + 2), z: 0 }));
+    const open = { image: world, world, score: 1 };
+    const a = analyzePose({ ...f, hands: [open] }, 16 / 9)!;
+    expect(a.palms).toBeGreaterThan(0.7);
+    expect(a.powerUpPose).toBeLessThan(0.7);
+  });
+
   it('rejects a neutral standing pose', () => {
     const a = analyzePose(frame(buildWorldPose('idle')), 16 / 9)!;
     expect(a.chargePose).toBeLessThan(0.3);

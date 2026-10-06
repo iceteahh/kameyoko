@@ -73,7 +73,7 @@ export class Overlay {
         const fmt = (v: number | null) => (v === null ? '–' : v.toFixed(2));
         const y = Math.min(feet.y + 22, this.layout.height - 76);
         const c = players[i].ctrl;
-        ctx.fillText(`charge ${fmt(a.chargePose)}  fire ${fmt(a.firePose)}  stance ${fmt(a.stance)}  palms ${fmt(a.palms)}`, feet.x, y);
+        ctx.fillText(`charge ${fmt(a.chargePose)}  fire ${fmt(a.firePose)}  power ${fmt(a.powerUpPose)}  stance ${fmt(a.stance)}  palms ${fmt(a.palms)}`, feet.x, y);
         ctx.fillText(
           `ext ${fmt(a.extension)}  together ${fmt(a.fireTogether)}  height ${fmt(a.fireHeight)}  moved ${fmt(c.moved)}  release ${fmt(c.release)}`,
           feet.x,

@@ -12,7 +12,7 @@ const CHECKS: [keyof FormChecks, string][] = [
   ['palmsOpen', 'Open palms'],
 ];
 
-const PHASE_LABEL = { idle: 'READY', charging: 'CHARGING', firing: 'FIRING', cooldown: 'RECOVER' } as const;
+const PHASE_LABEL = { idle: 'READY', charging: 'CHARGING', firing: 'FIRING', cooldown: 'RECOVER', powering: 'POWERING UP…' } as const;
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) => {
   const e = document.createElement(tag);
@@ -29,6 +29,7 @@ class PlayerPanel {
   private pumpRow: HTMLElement;
   private pumpFill: HTMLElement;
   private form: HTMLElement;
+  private badge: HTMLElement;
   private checks = new Map<keyof FormChecks, HTMLElement>();
 
   constructor(i: PlayerId) {
@@ -36,6 +37,7 @@ class PlayerPanel {
     this.root.style.setProperty('--pc', CONFIG.colors.players[i].css);
     const head = el('div', 'panel-head');
     head.append(el('span', 'pname', `PLAYER ${i + 1}`), (this.wins = el('span', 'wins')));
+    this.badge = el('div', 'ssj-badge', '★ SUPER SAIYAN');
     this.state = el('div', 'state', 'WAITING');
     const bar = el('div', 'bar');
     bar.append((this.chargeFill = el('div', 'fill')));
@@ -50,11 +52,12 @@ class PlayerPanel {
       list.append(li);
     }
     this.form = el('div', 'form');
-    this.root.append(head, this.state, bar, this.pumpRow, list, this.form);
+    this.root.append(head, this.badge, this.state, bar, this.pumpRow, list, this.form);
   }
 
   update(p: PlayerCtx, wins: number, versus: boolean, struggling: boolean) {
     this.root.classList.toggle('absent', !p.present);
+    this.root.classList.toggle('ssj', p.present && p.ctrl.superSaiyan);
     this.wins.textContent = versus ? '★'.repeat(wins) || '—' : '';
     const a = p.analysis;
     if (!p.present || !a) {
@@ -66,9 +69,13 @@ class PlayerPanel {
       return;
     }
     const ctrl = p.ctrl;
+    const powering = ctrl.phase === 'powering';
     this.state.textContent = struggling && ctrl.phase === 'firing' ? 'BEAM STRUGGLE!' : PHASE_LABEL[ctrl.phase];
     this.state.dataset.phase = ctrl.phase;
-    this.chargeFill.style.width = `${Math.round(ctrl.charge * 100)}%`;
+    // While powering up the bar shows progress toward the transformation, in gold.
+    this.chargeFill.classList.toggle('ascend', powering);
+    const fill = powering ? (ctrl.superSaiyan ? 1 : ctrl.ascend) : ctrl.charge;
+    this.chargeFill.style.width = `${Math.round(fill * 100)}%`;
     this.pumpRow.classList.toggle('show', struggling);
     this.pumpFill.style.width = `${Math.round(Math.min(1, ctrl.pump / CONFIG.pump.max) * 100)}%`;
     for (const [k] of CHECKS) {
@@ -165,6 +172,11 @@ export class Hud {
     if (game.struggle.active) return 'Hold the pose and PUMP your arms forward to push the clash back!';
     const p = here[0];
     if (p.ctrl.phase === 'firing') return 'HAAAA! Hold the thrust to keep the beam going.';
+    if (p.ctrl.phase === 'powering') {
+      return p.ctrl.superSaiyan
+        ? 'SUPER SAIYAN! Now cup your hands at your hip for a stronger Kamehameha.'
+        : 'AAAARGH! Stay low with your fists at your hips to go Super Saiyan!';
+    }
     if (p.ctrl.phase === 'charging' && p.analysis) {
       const a = p.analysis;
       if (p.ctrl.charge < CONFIG.fire.minCharge) return 'Keep charging…';
@@ -178,7 +190,8 @@ export class Hud {
     if (here.length === 1 && maxPlayers === 2 && !game.versus) {
       return 'Cup your hands together at your hip to charge. A second player can step in for a duel!';
     }
-    if (p.analysis?.stance === null) return 'Cup both hands at your hip to charge · show your legs for a stance power bonus.';
-    return 'Cup both hands at your hip to charge, then thrust forward to fire.';
+    if (!p.ctrl.superSaiyan) return 'Cup both hands at your hip to charge · wide low stance, fists at your hips, to power up to Super Saiyan.';
+    if (p.analysis?.stance === null) return 'Super Saiyan! Charge a stronger Kamehameha · show your legs for a stance power bonus.';
+    return 'Super Saiyan! Cup both hands at your hip to charge a stronger Kamehameha.';
   }
 }

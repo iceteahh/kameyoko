@@ -106,6 +106,13 @@ function onGesture(i: PlayerId, e: GestureEvent, players: [PlayerCtx, PlayerCtx]
     hud.callout('HAAAA!', i, players, true);
     sfx.fire();
     sfx.callout('FIRE');
+  } else if (e.type === 'powerStart') {
+    if (!players[i].ctrl.superSaiyan) hud.callout('HAAAAA…', i, players);
+    sfx.powerUp();
+  } else if (e.type === 'transform') {
+    hud.showBanner('SUPER SAIYAN!', `Player ${i + 1} broke the limit`, 1.8, i);
+    sfx.transform();
+    sfx.callout('SSJ');
   }
 }
 
@@ -176,6 +183,8 @@ function frame(nowMs: number) {
     sfx.setPlayer(i as PlayerId, {
       charging: p.ctrl.phase === 'charging',
       charge: p.ctrl.charge,
+      powering: p.ctrl.phase === 'powering',
+      ascend: p.ctrl.ascend,
       firing: b.active,
       power: game.struggle.active ? game.struggle.intensity / 1.6 : 0.6,
     });

@@ -89,6 +89,37 @@ void main() {
 }
 `;
 
+/** Super Saiyan aura: a flame envelope around the body with tongues rushing upward. */
+export const AURA_FRAG = /* glsl */ `
+uniform float uTime;
+uniform float uIntensity;
+uniform float uSeed;
+uniform vec3 uGlow;
+uniform vec3 uCore;
+varying vec2 vUv;
+${NOISE}
+void main() {
+  // p.y points up on screen (the camera is y-down).
+  vec2 p = vec2(vUv.x * 2.0 - 1.0, 1.0 - vUv.y * 2.0);
+  float up = clamp(p.y * 0.5 + 0.5, 0.0, 1.0);
+  // Teardrop that narrows toward the top so the flames gather above the head.
+  float r = length(vec2(p.x / mix(1.0, 0.5, up * up), p.y));
+  float n = fbm(vec2(p.x * 3.0 + uSeed, p.y * 1.5 - uTime * 2.4));
+  float tongues = fbm(vec2(p.x * 7.0 - uSeed, p.y * 2.0 - uTime * 4.5));
+  float edge = 0.76 + (n - 0.5) * 0.45 + (tongues - 0.5) * 0.5 * up;
+  float d = r - edge;
+  // Bright flickering edge, sparse flame tongues inside, and a see-through middle so the player stays visible.
+  float rim = exp(-d * d / 0.0025);
+  float glow = exp(-max(d, 0.0) * 10.0) * step(0.0, d);
+  float inside = smoothstep(0.03, -0.2, d);
+  float streak = smoothstep(0.55, 0.85, tongues) * inside * smoothstep(-0.6, 0.0, d);
+  float fade = smoothstep(-1.0, -0.75, p.y) * smoothstep(1.0, 0.85, max(abs(p.x), p.y));
+  vec3 col = mix(uGlow, uCore, clamp(rim * 0.4 + streak * 0.5, 0.0, 1.0))
+           * (rim * 0.7 + glow * 0.2 + inside * 0.025 + streak * 0.35);
+  gl_FragColor = vec4(col * uIntensity * fade, 1.0);
+}
+`;
+
 export const RING_FRAG = /* glsl */ `
 uniform float uIntensity;
 uniform float uThick;

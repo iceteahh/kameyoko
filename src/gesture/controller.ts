@@ -3,18 +3,23 @@ import { damp, dist2, lerp2, ramp } from '../math';
 import type { V2 } from '../types';
 import type { FormAnalysis } from './analyze';
 
-export type Phase = 'idle' | 'charging' | 'firing' | 'cooldown';
+export type Phase = 'idle' | 'charging' | 'firing' | 'cooldown' | 'powering';
 
 export type GestureEvent =
   | { type: 'chargeStart' }
   | { type: 'callout'; text: string; index: number }
   | { type: 'fire'; charge: number }
   | { type: 'fireEnd' }
-  | { type: 'fizzle' };
+  | { type: 'fizzle' }
+  | { type: 'powerStart' }
+  | { type: 'transform' };
 
 export const CALLOUTS = ['KA', 'ME', 'HA', 'ME'];
 
-/** Per-player state machine: idle → charging (KA-ME-HA-ME) → firing (HA!) → cooldown. */
+/**
+ * Per-player state machine: idle → charging (KA-ME-HA-ME) → firing (HA!) → cooldown.
+ * From idle, the power-up stance enters `powering`, which transforms into Super Saiyan.
+ */
 export class GestureController {
   phase: Phase = 'idle';
   /** Stored energy 0..1. Drains while firing (unless `drain` is off). */
@@ -28,6 +33,10 @@ export class GestureController {
   /** Prevents starting a new beam (round intro / KO). */
   fireBlocked = false;
   drain = true;
+  /** Transformed by powering up. Survives beams; cleared by reset() (new round, leaving view, KO). */
+  superSaiyan = false;
+  /** Progress 0..1 toward transforming; builds while powering up, fades otherwise. */
+  ascend = 0;
   /** Debug readouts: how far the hands left the charge spot, and the release score. */
   moved = 0;
   release = 0;
@@ -37,6 +46,7 @@ export class GestureController {
   private releaseTime = 0;
 
   private hold = 0;
+  private powerHold = 0;
   private grace = 0;
   private lost = 0;
   private cool = 0;
@@ -46,11 +56,19 @@ export class GestureController {
   private reachVel = 0;
 
   reset() {
+    this.resetCycle();
+    this.superSaiyan = false;
+    this.ascend = 0;
+  }
+
+  /** Back to idle after a beam or a dropped charge, keeping any transformation. */
+  private resetCycle() {
     this.phase = 'idle';
     this.charge = 0;
     this.fireCharge = 0;
     this.pump = 0;
     this.hold = 0;
+    this.powerHold = 0;
     this.grace = 0;
     this.lost = 0;
     this.cool = 0;
@@ -94,7 +112,10 @@ export class GestureController {
     const ev: GestureEvent[] = [];
     const c = CONFIG.charge;
     const f = CONFIG.fire;
+    const ss = CONFIG.superSaiyan;
     const chargeP = a?.chargePose ?? 0;
+    const powerP = a?.powerUpPose ?? 0;
+    if (this.phase !== 'powering') this.ascend = Math.max(0, this.ascend - ss.decay * dt);
 
     if (a) {
       const target = this.phase === 'firing' ? a.fireQuality : a.chargeQuality;
@@ -110,8 +131,39 @@ export class GestureController {
           this.grace = 0;
           this.callout = 0;
           ev.push({ type: 'chargeStart' });
+          break;
+        }
+        this.powerHold = powerP >= ss.startThreshold ? this.powerHold + dt : Math.max(0, this.powerHold - dt * 2);
+        if (this.powerHold >= ss.holdToStart) {
+          this.phase = 'powering';
+          this.lost = 0;
+          ev.push({ type: 'powerStart' });
         }
         break;
+
+      case 'powering': {
+        // Going straight into the Kamehameha: hand over to idle so the charge can start.
+        if (chargeP >= c.startThreshold) {
+          this.resetCycle();
+          break;
+        }
+        if (powerP < ss.holdThreshold) {
+          this.lost += dt;
+          if (this.lost > ss.grace) this.resetCycle();
+          break;
+        }
+        this.lost = 0;
+        if (!this.superSaiyan) {
+          const stanceBoost = 0.8 + 0.4 * (a?.stance ?? 0.5);
+          this.ascend = Math.min(1, this.ascend + (dt / ss.holdToTransform) * (0.7 + 0.3 * powerP) * stanceBoost);
+          if (this.ascend >= 1) {
+            this.superSaiyan = true;
+            this.ascend = 0;
+            ev.push({ type: 'transform' });
+          }
+        }
+        break;
+      }
 
       case 'charging': {
         const motion = a ? this.motion(a) : 0;
@@ -138,7 +190,8 @@ export class GestureController {
           // Track the charge pose only while it's clearly held and still.
           if (a && chargeP >= c.startThreshold && motion < 0.25) this.recordAnchor(a);
           const stanceBoost = 0.8 + 0.4 * (a?.stance ?? 0.5);
-          this.charge = Math.min(1, this.charge + c.rate * dt * (0.6 + 0.4 * chargeP) * stanceBoost);
+          const rate = c.rate * (this.superSaiyan ? ss.chargeRate : 1);
+          this.charge = Math.min(1, this.charge + rate * dt * (0.6 + 0.4 * chargeP) * stanceBoost);
           while (this.callout < CALLOUTS.length && this.charge >= c.calloutAt[this.callout]) {
             ev.push({ type: 'callout', text: CALLOUTS[this.callout], index: this.callout });
             this.callout++;
@@ -149,7 +202,7 @@ export class GestureController {
         if (this.grace > c.grace) this.charge = Math.max(0, this.charge - c.decay * dt);
         if (this.charge <= 0 || this.grace > c.grace + 1.5) {
           if (this.charge > 0.25) ev.push({ type: 'fizzle' });
-          this.reset();
+          this.resetCycle();
         }
         break;
       }
@@ -165,7 +218,7 @@ export class GestureController {
 
       case 'cooldown':
         this.cool -= dt;
-        if (this.cool <= 0) this.reset();
+        if (this.cool <= 0) this.resetCycle();
         break;
     }
     return ev;

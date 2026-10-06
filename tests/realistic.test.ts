@@ -16,6 +16,16 @@ describe('real-camera style data (depth underestimated toward the lens)', () => 
     expect(a.chargePose).toBeLessThan(0.4);
   });
 
+  it('recognises the power-up stance facing the camera, even with noisy arms', () => {
+    expect(realistic('powerup').powerUpPose).toBeGreaterThan(0.7);
+    for (const name of ['idle', 'charge', 'fire'] as const) expect(realistic(name).powerUpPose).toBeLessThan(0.3);
+    const rand = rng(7);
+    const c = new GestureController();
+    const ev: GestureEvent[] = [];
+    for (let t = 0; t < 4; t += 1 / 30) ev.push(...c.update(1 / 30, analyse(noisy(facingCamera(buildWorldPose('powerup')), 0.04, rand))));
+    expect(ev.some((e) => e.type === 'transform')).toBe(true);
+  });
+
   it('fires when releasing into a thrust toward the camera', () => {
     const c = new GestureController();
     run(c, realistic('charge'), 2.5);
