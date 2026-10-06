@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kameyoko — Kamehameha Camera</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ccircle cx=%2750%27 cy=%2750%27 r=%2740%27 fill=%27%233aa0ff%27/%3E%3Ccircle cx=%2750%27 cy=%2750%27 r=%2720%27 fill=%27white%27/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <video id="video" playsinline muted></video>
+    <canvas id="fx"></canvas>
+    <canvas id="overlay"></canvas>
+    <div id="hud" class="hidden"></div>
+
+    <div id="start">
+      <div class="card">
+        <h1>KAMEYOKO</h1>
+        <p class="tag">Fire a Kamehameha with your body. Duel a friend in a beam struggle.</p>
+        <ol class="steps">
+          <li><b>Stance</b> — stand ~2 m back, feet wide, knees bent (power bonus).</li>
+          <li><b>KA-ME-HA-ME…</b> — cup both hands together and pull them back to your hip. Hold to charge.</li>
+          <li><b>HA!</b> — thrust both arms forward, wrists together, palms open.</li>
+          <li><b>Duel</b> — two players stand left &amp; right. When beams collide, <b>pump your arms</b> to win the struggle.</li>
+        </ol>
+        <div class="options">
+          <label>Pose model
+            <select id="model">
+              <option value="lite">Lite (fastest)</option>
+              <option value="full" selected>Full (balanced)</option>
+              <option value="heavy">Heavy (most accurate)</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="hands" checked /> Finger tracking (palms)</label>
+        </div>
+        <div class="buttons">
+          <button id="start-camera" class="primary">Start camera</button>
+          <button id="start-demo">Watch demo duel</button>
+        </div>
+        <div id="status"></div>
+        <p class="legal">
+          Unofficial fan project, not affiliated with or endorsed by Bird Studio, Shueisha, Toei Animation or
+          Bandai Namco. Dragon Ball and related names are trademarks of their respective owners.
+          <a href="THIRD_PARTY_NOTICES.txt" target="_blank" rel="noopener">Licenses</a>
+        </p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
